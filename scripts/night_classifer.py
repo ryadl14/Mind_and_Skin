@@ -58,7 +58,7 @@ for participant in dataset.iterdir():
         for night in night_list:
             night_object = datetime.strptime(night.name, "%Y%m%d")
             night_number = (night_object - night_anchor).days + 1
-            night_key = f"night_{night_number}"
+            night_key = f"{visit.name}_night_{night_number}"
             all_night_keys.add(night_key)
 
             # Update log with original date
@@ -78,7 +78,7 @@ for participant in dataset.iterdir():
 # =====================
 # Write updated log
 # =====================
-all_night_keys = sorted(all_night_keys, key=lambda x: int(x.split('_')[1])) # Sorts the night columns numerically
+all_night_keys = sorted(all_night_keys, key=lambda x: (int(x.split('_')[1]), int(x.split('_')[3]))) # Sorts the night (and visit) columns numerically
 new_fieldnames = ['participant_id', 'emfit_id'] + all_night_keys # Creates the column list, where participant_id and emfit_id is always first.
 
 with open(log_path, 'w', newline='') as f:
@@ -88,41 +88,3 @@ with open(log_path, 'w', newline='') as f:
         writer.writerow(row)
 
 print("Done. Log updated.")
-
-
-# for participants in dataset.iterdir(): # Loops through each participant
-#     if not participants.is_dir(): # In case there are other files alongside the participant folders
-#             continue
-
-#     for visits in participants.iterdir(): # Loops through each visit within each participant.
-        
-#         for item in visits.iterdir(): # In case there are other files alongside the night folders
-             
-#             if item.is_dir() and item.name.endswith(('.csv', '.edf')): # In case there are .csv or .edf folders alongside the visit folders
-                
-#                 stem_night_folder = item.stem
-#                 night_folder = visits / stem_night_folder # Builds the path for the night folder
-#                 item.rename(night_folder) # Moves the item to the night folder
-#                 item.rmdir() # Removes the original folder if it is empty.
-                
-
-
-#         # Creates a list of nights within each visit, excluding non-directories and directories which end with .csv and .edf
-#         night_list = sorted([n for n in visits.glob("202*") if n.is_dir() and not n.name.endswith(('.csv', '.edf'))])
-        
-#         if not night_list: # In case visits have no data folders.
-#             continue
-
-#         for night in night_list: # Loops through the night
-
-#             # Computes the night number
-#             night_object = datetime.strptime(str(night.name), "%Y%m%d")
-#             night_anchor = datetime.strptime(str(night_list[0].name), "%Y%m%d")
-#             night_number = (night_object - night_anchor).days + 1
-            
-#             destination = night.parent /f"Night_{night_number}" # Builds the destination path
-#             if destination.exists():
-#                 print ("Skipping, Night folder already exists...")
-#                 continue
-#             else:
-#                 night.rename(destination)

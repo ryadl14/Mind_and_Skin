@@ -16,7 +16,7 @@ for participant in dataset.iterdir(): # Loops over everything in data/raw, skips
         continue
     participant_id = participant.name
 
-    for visit in participant.iterdir(): # Loops over the visit folders in the participant directory, skips non-directories and captures Visit_ into V.
+    for visit in participant.iterdir(): # Loops over the visit folders in each participant directory, skips non-directories and captures Visit_ into V.
         if not visit.is_dir():
             continue
         visit_num = visit.name.replace("Visit_", "V")
