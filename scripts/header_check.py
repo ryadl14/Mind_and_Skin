@@ -17,26 +17,50 @@ with open(log, 'w', newline='') as f:
             filename = Path(edf).stem
             print (f"Processing {filename}!")
             
-            parts = edf.stem.split('_')
-            participant = parts[0]
-            start_date = parts[2]
-            start_time = parts[3]
-            
+            # Default values for participant, visit and night in the event the try block fails before they are created
+            participant = None
             visit = edf.parts[-4]
             night = edf.parts[-3]
 
-            # Checks if there are more than 4 parts in the filename
-            # Checks if the 4th chunk is digits (to counter recordings that cross timezones)
-            # Distinguishes between times (4 digits) and dates (8 digits)
-            if len(parts) > 4 and parts[4].isdigit() and len(parts[4]) > 4:
-                end_date = parts[4]
-                end_time = parts[5]
-            elif parts[4].isdigit(): # Runs when there is no end date (same day recording)
-                end_date = start_date
-                end_time = parts [4]
-            else: # Edge case where recording occurs across two different timezones
-                end_date = parts[5]
-                end_time = parts[6]
+            try:
+                parts = edf.stem.split('_')
+                participant = parts[0]
+                start_date = parts[2]
+                start_time = parts[3]
+                
+                visit = edf.parts[-4]
+                night = edf.parts[-3]
+
+                # Checks if there are more than 4 parts in the filename
+                # Checks if the 4th chunk is digits (to counter recordings that cross timezones)
+                # Distinguishes between times (4 digits) and dates (8 digits)
+                if len(parts) > 4 and parts[4].isdigit() and len(parts[4]) > 4:
+                    end_date = parts[4]
+                    end_time = parts[5]
+                elif parts[4].isdigit(): # Runs when there is no end date (same day recording)
+                    end_date = start_date
+                    end_time = parts [4]
+                else: # Edge case where recording occurs across two different timezones
+                    end_date = parts[5]
+                    end_time = parts[6]
+            except IndexError:
+                recording_duration_secs = raw.n_times / raw.info['sfreq']
+                header_start_datetime = raw.info['meas_date']
+                header_end = header_start_datetime + timedelta(seconds=recording_duration_secs)
+                writer.writerow({
+                    'filename': edf,
+                    'participant_id': participant,
+                    'visit': visit,
+                    'night': night,
+                    'header_start': None,
+                    'filename_start': None,
+                    'header_end': None,
+                    'filename_end': None,
+                    'offset_minutes': None,
+                    'match': False
+                })
+                continue
+                 
 
             header_start_datetime = raw.info['meas_date'] # Gets the header start datetime
             
@@ -46,7 +70,6 @@ with open(log, 'w', newline='') as f:
            
             offset_minutes = header_start_datetime - filename_datetime
             offset_minutes = offset_minutes.total_seconds() / 60 # Gets the minute offset
-            print (f"The header is offset from the filename by {offset_minutes} minutes!")
 
             if end_time is not None: # In the event there is no end_time
                 filename_end_datetime = end_date + " " + end_time
