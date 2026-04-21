@@ -3,8 +3,8 @@ from pathlib import Path
 import csv
 import shutil
 
-dataset = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit/data/raw")
-log_path = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit/logs/emfit_num_log.csv")
+dataset = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit2/data/raw") # NOTE EMFIT2 IN PATH
+log_path = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit2/logs/emfit_num_log.csv") # NOTE EMFIT2 IN PATH
 
 # === Load existing log file as a dictionary ===
 with open(log_path, newline='') as f:
@@ -38,6 +38,8 @@ for participant in dataset.iterdir():
                 item.rmdir()  # Remove now-empty edge case folder
                 print(f"Fixed edge case folder: {item.name} → {item.stem}")
 
+        
+
         # =====================
         # Build night list
         # Only include date-named directories, exclude extension folders
@@ -65,6 +67,12 @@ for participant in dataset.iterdir():
             if participant_id not in log_lookup:
                 log_lookup[participant_id] = {'participant_id': participant_id, 'emfit_id': 'N/A'} # If a participant isn't in the log, adds them.
             log_lookup[participant_id][night_key] = night.name
+
+            nested_edf = night / "edf" / "edf" # Catches nested edf files and moves the .edf file up and out.
+            if nested_edf.is_dir():
+                for file in nested_edf.iterdir():
+                    shutil.move(str(file), str(night / "edf"))
+                nested_edf.rmdir()
 
             # Rename folder
             destination = night.parent / f"Night_{night_number}"
