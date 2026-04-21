@@ -4,8 +4,8 @@ from pathlib import Path
 from datetime import datetime, timezone, timedelta
 mne.set_log_level('WARNING') # Silences verbose messages
 
-files = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit2/data/raw") # NOTE EMFIT2 IN PATH
-log = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit2/logs/header_check_log.csv") # NOTE EMFIT2 IN PATH
+files = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit5/data/raw") # NOTE EMFIT5 IN PATH
+log = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit5/logs/header_check_log.csv") # NOTE EMFIT5 IN PATH
 
 column_names = ['filename', 'participant_id', 'visit', 'night', 'header_start', 'filename_start', 'header_end', 'filename_end', 'offset_minutes', 'match' ]
 with open(log, 'w', newline='') as f:

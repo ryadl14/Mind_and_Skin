@@ -2,9 +2,10 @@ from datetime import datetime
 from pathlib import Path
 import csv
 import shutil
+import re
 
-dataset = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit2/data/raw") # NOTE EMFIT2 IN PATH
-log_path = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit2/logs/emfit_num_log.csv") # NOTE EMFIT2 IN PATH
+dataset = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit5/data/raw") # NOTE EMFIT5 IN PATH
+log_path = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit5/logs/emfit_num_log.csv") # NOTE EMFIT5 IN PATH
 
 # === Load existing log file as a dictionary ===
 with open(log_path, newline='') as f:
@@ -66,7 +67,7 @@ for participant in dataset.iterdir():
             # Update log with original date
             if participant_id not in log_lookup:
                 log_lookup[participant_id] = {'participant_id': participant_id, 'emfit_id': 'N/A'} # If a participant isn't in the log, adds them.
-            log_lookup[participant_id][night_key] = night.name
+            log_lookup[participant_id][night_key] = datetime.strptime(night.name, "%Y%m%d").strftime("%d/%m/%Y") # Changes the date format to dd/mm/yyyy
 
             nested_edf = night / "edf" / "edf" # Catches nested edf files and moves the .edf file up and out.
             if nested_edf.is_dir():
@@ -91,6 +92,11 @@ new_fieldnames = ['participant_id', 'emfit_id'] + all_night_keys # Creates the c
 
 with open(log_path, 'w', newline='') as f:
     writer = csv.DictWriter(f, fieldnames=new_fieldnames, extrasaction='ignore') # Overwrites the log file with the updated values.
+    log_lookup = {
+        re.sub(r'_Visit.*', '', k): v # Catches any trailing _Visit* suffixes in the participant column.
+        for k, v in log_lookup.items()
+    }
+    
     writer.writeheader()
     for row in log_lookup.values():
         writer.writerow(row)
