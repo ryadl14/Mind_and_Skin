@@ -14,6 +14,7 @@ echo "Setting up EMFIT at: $EMFIT_DIR"
 
 echo "Creating directories"
 mkdir -p "$EMFIT_DIR/data/raw"
+mkdir -p "$EMFIT_DIR/data/intermediate"
 mkdir -p "$EMFIT_DIR/data/processed"
 mkdir -p "$EMFIT_DIR/scripts"
 mkdir -p "$EMFIT_DIR/documentation/"
