@@ -47,14 +47,16 @@ with open(log, 'w', newline='') as f:
                 recording_duration_secs = raw.n_times / raw.info['sfreq']
                 header_start_datetime = raw.info['meas_date']
                 header_end = header_start_datetime + timedelta(seconds=recording_duration_secs)
+                header_start_datetime = header_start_datetime.strftime("%d/%m/%Y %H:%M:%S")
+                header_end = header_end.strftime("%d/%m/%Y %H:%M:%S")
                 writer.writerow({
                     'filename': edf,
                     'participant_id': participant,
                     'visit': visit,
                     'night': night,
-                    'header_start': None,
+                    'header_start': header_start_datetime,
                     'filename_start': None,
-                    'header_end': None,
+                    'header_end': header_end,
                     'filename_end': None,
                     'offset_minutes': None,
                     'match': False
