@@ -50,7 +50,7 @@ for participant in dataset.iterdir():
             if n.is_dir() and not n.name.endswith(('.csv', '.edf'))
         ])
 
-        if not night_list:
+        if not night_list: # Ensures night_list is not empty.
             continue
 
         night_anchor = datetime.strptime(night_list[0].name, "%Y%m%d")
@@ -61,7 +61,7 @@ for participant in dataset.iterdir():
         for night in night_list:
             night_object = datetime.strptime(night.name, "%Y%m%d")
             night_number = (night_object - night_anchor).days + 1
-            night_key = f"{visit.name}_night_{night_number}"
+            night_key = f"{visit.name}_night_{night_number}" # Includes visit number to emfit_num_log to prevent nights across multiple visits overriding each other.
             all_night_keys.add(night_key)
 
             # Update log with original date
@@ -97,7 +97,7 @@ with open(log_path, 'w', newline='') as f:
         for k, v in log_lookup.items()
     }
     
-    writer.writeheader()
+    writer.writeheader() # Writes the column names as the first row of the CSV, then the for loop iterates over each participant's data dictionary and writes it as a row.
     for row in log_lookup.values():
         writer.writerow(row)
 
