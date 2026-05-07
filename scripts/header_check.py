@@ -66,15 +66,21 @@ with open(log, 'w', newline='') as f:
             
             filename_start_datetime= start_date + " " + start_time
             filename_start_datetime = datetime.strptime(filename_start_datetime, "%Y%m%d %H%M") # Sets the filename date and time as a datetime object
-            filename_datetime = filename_start_datetime.replace(tzinfo=timezone.utc) # Sets it as UTC
+            filename_start_datetime = filename_start_datetime.replace(tzinfo=timezone.utc) # Sets it as UTC
+
            
-            offset_minutes = header_start_datetime - filename_datetime
+            offset_minutes = header_start_datetime - filename_start_datetime
             offset_minutes = offset_minutes.total_seconds() / 60 # Gets the minute offset
+
+            filename_start_datetime = filename_start_datetime.strftime("%d/%m/%Y %H:%M:00") # Standardises the datetime format, had to be done after offset is calculated since strftime converts it to a string.
+
 
             if end_time is not None: # In the event there is no end_time
                 filename_end_datetime = end_date + " " + end_time
                 filename_end_datetime = datetime.strptime(filename_end_datetime, "%Y%m%d %H%M") # Sets the filename date and time as a datetime object
                 filename_end_datetime = filename_end_datetime.replace(tzinfo=timezone.utc) # Sets it as UTC
+                filename_end_datetime = filename_end_datetime.strftime("%d/%m/%Y %H:%M:00") # Standardises the dataformat format
+
             else:
                  filename_end_datetime = None
 
@@ -82,6 +88,9 @@ with open(log, 'w', newline='') as f:
 
             recording_duration_secs = raw.n_times / raw.info['sfreq'] # Calculates the seconds in a recording by dividing the number of samples by the sampling frequency.
             header_end = header_start_datetime + timedelta(seconds=recording_duration_secs)
+
+            header_start_datetime = header_start_datetime.strftime("%d/%m/%Y %H:%M:%S") # Standardises the datetime format
+            header_end = header_end.strftime("%d/%m/%Y %H:%M:%S")
 
             writer.writerow({
                 'filename': edf,
