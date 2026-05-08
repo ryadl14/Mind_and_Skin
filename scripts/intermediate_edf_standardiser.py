@@ -39,7 +39,8 @@ for _, row in log_df.iterrows(): # Iterates over all rows in log_df
 
     header_end = datetime.strptime(row['header_end'], "%d/%m/%Y %H:%M:%S") # Gets the header end datetime
     header_end = header_end.replace(tzinfo=eest_tz)
-    header_end_uk = header_end.astimezone(uk_tz)
+    header_end_uk = header_end.astimezone(timezone.utc) + header_start_uk.utcoffset() # Catches edge case where recording occurs during timezone switch (currently not working)
+    header_end_uk = header_end_uk.replace(tzinfo=header_start_uk.tzinfo) # Uses the start date's timezone (usually BST)
 
     start_date = header_start_uk.strftime("%Y%m%d") # Isolates the start date
     start_time = header_start_uk.strftime("%H%M") # Isolates the start time
