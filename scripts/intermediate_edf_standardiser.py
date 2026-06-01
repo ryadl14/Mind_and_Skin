@@ -10,9 +10,9 @@ import shutil
 # Therefore, the purpose of this script is to double-check it and ensure that the manually-written filenames are correct.
 # rename_counter tracks how many files were renamed.
 
-raw_dir = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit5/data/raw")
-intermediate_dir = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit5/data/intermediate")
-log_path = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit5/logs/header_check_log.csv")
+raw_dir = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/data/raw")
+intermediate_dir = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/data/intermediate")
+log_path = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/logs/header_check_log.csv")
 
 rename_counter = 0
 uk_tz = ZoneInfo("Europe/London")
@@ -34,12 +34,12 @@ for _, row in log_df.iterrows(): # Iterates over all rows in log_df
     header_start = datetime.strptime(row['header_start'], "%d/%m/%Y %H:%M:%S") # Gets the header start datetime
     header_start = header_start.replace(tzinfo=eest_tz) # Attaches the Helsinki (Finnish) timezone.
     header_start_uk = header_start.astimezone(uk_tz) # Converts to UK local time, switching between GMT and BST depending on the date.
-    utc_offset = int(header_start_uk.utcoffset().total_seconds() // 3600)
+    utc_offset = int(header_start_uk.utcoffset().total_seconds() // 3600) # Calculates hours offset.
     utc_string = f"UTC+{utc_offset}" if utc_offset >= 0 else f"UTC{utc_offset}"
 
     header_end = datetime.strptime(row['header_end'], "%d/%m/%Y %H:%M:%S") # Gets the header end datetime
     header_end = header_end.replace(tzinfo=eest_tz)
-    header_end_uk = header_end.astimezone(timezone.utc) + header_start_uk.utcoffset() # Catches edge case where recording occurs during timezone switch (currently not working)
+    header_end_uk = header_end.astimezone(timezone.utc) + header_start_uk.utcoffset() # Catches edge case where recording occurs during timezone switch (currently not working, is it because it is on the header_end rather than beginning?)
     header_end_uk = header_end_uk.replace(tzinfo=header_start_uk.tzinfo) # Uses the start date's timezone (usually BST)
 
     start_date = header_start_uk.strftime("%Y%m%d") # Isolates the start date

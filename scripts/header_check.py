@@ -4,8 +4,8 @@ from pathlib import Path
 from datetime import datetime, timezone, timedelta
 mne.set_log_level('WARNING') # Silences verbose messages
 
-files = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit5/data/raw") # NOTE EMFIT5 IN PATH
-log = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit5/logs/header_check_log.csv") # NOTE EMFIT5 IN PATH
+files = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/data/raw") # NOTE EMFIT_1 IN PATH
+log = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/logs/header_check_log.csv") # NOTE EMFIT_1 IN PATH
 
 column_names = ['filename', 'participant_id', 'visit', 'night', 'header_start', 'filename_start', 'header_end', 'filename_end', 'offset_minutes', 'match' ]
 with open(log, 'w', newline='') as f:
@@ -31,18 +31,22 @@ with open(log, 'w', newline='') as f:
                 visit = edf.parts[-4]
                 night = edf.parts[-3]
 
-                # Checks if there are more than 4 parts in the filename
-                # Checks if the 4th chunk is digits (to counter recordings that cross timezones)
-                # Distinguishes between times (4 digits) and dates (8 digits)
-                if len(parts) > 4 and parts[4].isdigit() and len(parts[4]) > 4:
+                if len(parts) > 4 and parts[4].isdigit() and len(parts[4]) == 8:
+                    # Standard two day recording
                     end_date = parts[4]
                     end_time = parts[5]
-                elif parts[4].isdigit(): # Runs when there is no end date (same day recording)
+                elif len(parts) > 4 and parts[4].isdigit():
+                    # Standard same day recording
                     end_date = start_date
-                    end_time = parts [4]
-                else: # Edge case where recording occurs across two different timezones
+                    end_time = parts[4]
+                elif len(parts) > 5 and parts[5].isdigit() and len(parts[5]) == 8:
+                    # DST two day recording - UTC offset appears mid filename
                     end_date = parts[5]
                     end_time = parts[6]
+                else:
+                    # DST same day recording - UTC offset appears mid filename, no end date
+                    end_date = start_date
+                    end_time = parts[5]
             except IndexError:
                 recording_duration_secs = raw.n_times / raw.info['sfreq']
                 header_start_datetime = raw.info['meas_date']

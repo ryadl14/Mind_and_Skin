@@ -5,7 +5,7 @@
 ## ^ Will come back later to adjust conditions.
 
 # Set base directory
-EMFIT_DIR="C:/Users/ryadl/Desktop/EMFIT_local/Emfit5" # NOTE EMFIT5 IN PATH
+EMFIT_DIR="C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1" # NOTE EMFIT_1 IN PATH
 echo "Setting up EMFIT at: $EMFIT_DIR"
 
 # ============================

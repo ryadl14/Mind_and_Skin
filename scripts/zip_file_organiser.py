@@ -1,7 +1,7 @@
 import zipfile
 from pathlib import Path
 
-dataset = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit5/data/raw") # NOTE EMFIT5 IN PATH
+dataset = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/data/raw") # NOTE EMFIT_1 IN PATH
 
 FILE_TYPE_MAP = { # A dictionary mapping the suffix found in the zip file names.
     'bedexits': 'bedexits',

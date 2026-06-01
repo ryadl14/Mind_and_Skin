@@ -4,8 +4,8 @@ import csv
 import shutil
 import re
 
-dataset = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit5/data/raw") # NOTE EMFIT5 IN PATH
-log_path = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit5/logs/emfit_num_log.csv") # NOTE EMFIT5 IN PATH
+dataset = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/data/raw") # NOTE EMFIT5 IN PATH
+log_path = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/logs/emfit_num_log.csv") # NOTE EMFIT5 IN PATH
 
 # === Load existing log file as a dictionary ===
 with open(log_path, newline='') as f:
