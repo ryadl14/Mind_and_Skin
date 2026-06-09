@@ -3,9 +3,12 @@ from pathlib import Path
 import csv
 import shutil
 import re
+import pandas as pd
 
 dataset = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/data/raw") # NOTE EMFIT5 IN PATH
 log_path = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/logs/emfit_num_log.csv") # NOTE EMFIT5 IN PATH
+output_path = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/logs/emfit_dates.csv")
+
 
 # === Load existing log file as a dictionary ===
 with open(log_path, newline='') as f:
@@ -60,7 +63,7 @@ for participant in dataset.iterdir():
         # =====================
         for night in night_list:
             night_object = datetime.strptime(night.name, "%Y%m%d")
-            night_number = (night_object - night_anchor).days + 1
+            night_number = (night_object - night_anchor).days # Night 0 indexed
             night_key = f"{visit.name}_night_{night_number}" # Includes visit number to emfit_num_log to prevent nights across multiple visits overriding each other.
             all_night_keys.add(night_key)
 
@@ -90,15 +93,71 @@ for participant in dataset.iterdir():
 all_night_keys = sorted(all_night_keys, key=lambda x: (int(x.split('_')[1]), int(x.split('_')[3]))) # Sorts the night (and visit) columns numerically
 new_fieldnames = ['participant_id', 'emfit_id'] + all_night_keys # Creates the column list, where participant_id and emfit_id is always first.
 
-with open(log_path, 'w', newline='') as f:
-    writer = csv.DictWriter(f, fieldnames=new_fieldnames, extrasaction='ignore') # Overwrites the log file with the updated values.
-    log_lookup = {
-        re.sub(r'_Visit.*', '', k): v # Catches any trailing _Visit* suffixes in the participant column.
-        for k, v in log_lookup.items()
-    }
-    
-    writer.writeheader() # Writes the column names as the first row of the CSV, then the for loop iterates over each participant's data dictionary and writes it as a row.
-    for row in log_lookup.values():
-        writer.writerow(row)
+log_lookup = {
+    re.sub(r'_Visit.*', '', k): v # Catches any trailing _Visit* suffixes in the participant column.
+    for k, v in log_lookup.items()
+}
 
-print("Done. Log updated.")
+try:
+    with open(log_path, 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=new_fieldnames, extrasaction='ignore')
+        writer.writeheader()
+        for row in log_lookup.values():
+            writer.writerow(row)
+    print("Done. Log updated.")
+except PermissionError:
+    print("ERROR: Cannot write to log — close the emfit_num_log first and rerun.")
+
+
+# =====================
+# Reformat emfit_num_log to match metadata
+# =====================
+
+def pad_participant(pid):
+    # Convert MS04 → MS004, MS25 → MS025
+    num = re.search(r'\d+', str(pid)).group() # Extract the number from the participant ID
+    return f"MS{int(num):03d}" # Zero-pad to 3 digits
+
+# Find participants with Visit_2 data
+multi_visit = {
+    pid for pid, row in log_lookup.items()
+    if any(k.startswith('Visit_2') and v is not None 
+           for k, v in row.items())
+} # Builds a set of participant IDs that have any Visit_2 night data
+
+# Get max night number
+max_night = max(
+    int(k.split('_night_')[1]) 
+    for k in all_night_keys
+) # Finds the highest night number across all participants to define column range
+
+night_cols = [f"N{i}" for i in range(max_night + 1)] # Creates column names N0, N1, N2...
+output_rows = []
+
+for pid, row in log_lookup.items():
+    if not pid:
+        continue # Skip empty participant IDs
+    
+    padded = pad_participant(pid) # Convert to metadata format e.g. MS004
+
+    visits = [1, 2] if pid in multi_visit else [1] # Two rows for multi-visit, one for single
+
+    for visit_num in visits:
+        # Build the ID for this row e.g. MS004V2 or MS004
+        row_id = f"{padded}V{visit_num}" if pid in multi_visit else padded
+        
+        new_row = {'ID': row_id}
+        for n in range(max_night + 1):
+            col = f"Visit_{visit_num}_night_{n}" # e.g. Visit_1_night_0
+            new_row[f"N{n}"] = row.get(col) # Gets the date, None if not present
+        
+        output_rows.append(new_row)
+
+# Build and save dataframe
+output_df = pd.DataFrame(output_rows, columns=['ID'] + night_cols)
+
+try:
+    output_df.to_csv(output_path, index=False)
+    print(f"Metadata format log saved to: {output_path}")
+except PermissionError:
+    print("ERROR: Cannot write metadata log — close the file first and rerun.")
