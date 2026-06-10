@@ -26,12 +26,27 @@ uk_tz = ZoneInfo("Europe/London")
 eest_tz = ZoneInfo("Europe/Helsinki")
 
 # =====================
-# STEP 1: Copy raw to intermediate
+# STEP 1: Copy only EDF files from raw to intermediate
 # =====================
-if intermediate_dir.exists():
-    shutil.rmtree(intermediate_dir)
-shutil.copytree(raw_dir, intermediate_dir)
-print("Copied raw data to intermediate directory.")
+print("Copying EDF files to intermediate directory...")
+
+edf_count = 0
+for edf_path in raw_dir.rglob("*.edf"):
+    # Mirror the folder structure in intermediate
+    relative_path = edf_path.relative_to(raw_dir)
+    dest_path = intermediate_dir / relative_path
+    
+    # Create parent directories if they don't exist
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Only copy if not already there
+    if not dest_path.exists():
+        shutil.copy2(edf_path, dest_path)
+        edf_count += 1
+    else:
+        print(f"Already exists, skipping: {dest_path.name}")
+
+print(f"Copied {edf_count} EDF files to intermediate.")
 
 # =====================
 # STEP 2: Update EDF headers from EEST to UK local time
@@ -150,7 +165,13 @@ try:
             else:
                 filename_end_datetime = None
 
-            utc_offset = int(parts[-1].replace('UTC+', '').replace('UTC-', ''))
+            try:
+                utc_offset = int(parts[-1].replace('UTC+', '').replace('UTC-', ''))
+            except ValueError:
+                print(f"Cannot parse UTC offset fromm {edf.stem}. defaulting to 0")
+                print(f"parts[-1] = {parts[-1]}")
+                utc_offset = 0
+
             expected_offset = utc_offset * 60
             match = abs(offset_minutes - expected_offset) < 1
 
@@ -186,7 +207,12 @@ log_df = pd.read_csv(log_path)
 
 for _, row in log_df.iterrows():
     raw_path = Path(row['filename'])
-    intermediate_path = intermediate_dir / raw_path.relative_to(raw_dir)
+
+    try: # Guard against not finding MS85 V1N5 in raw data for some reason?
+        intermediate_path = intermediate_dir / raw_path.relative_to(raw_dir)
+    except:
+        print(f"File not in raw directory, skipping: {raw_path.name}")
+        continue
 
     if not intermediate_path.exists():
         print(f"File not found, skipping: {intermediate_path}")
