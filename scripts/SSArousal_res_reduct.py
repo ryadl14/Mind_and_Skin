@@ -33,14 +33,13 @@ for participant_dir in processed_dir.glob("MS*"):
 
         resampled = df.resample('1s').agg({
             'Scratch_Pred': 'mean', # Takes the mean scratch prediction scrore.
-            'Scratch': 'max', # Saves the scratch binary as the highest level i.e. if there is a scratch at any point during the second, the entire second is scratch.
+            'Scratch': lambda x: 1 if x.mean() >= 0.5 else 0, # Saves as scratch is at least 50% of the second has scratch.
             'Sleep.stage': lambda x: x.mode()[0] if not x.mode().empty else None, # Takes the mode of the sleep stage across the second.
             'Is_Arousal': lambda x: x.dropna().iloc[0] if not x.dropna().empty else None # Takes the first non-null value across the second.
         })
 
-        # Save output
-        output_path = visit_dir / psg_file.name.replace('_acti_psg_SSandArousal.csv', '_acti_psg_SSandArousal_1s.csv')
-        resampled.to_csv(output_path)
-        print(f"Saved: {output_path.name}")
+        # Save output (overwrite original to save space)
+        resampled.to_csv(psg_file)
+        print(f"Saved: {psg_file.name}")
 
 print("Done.")

@@ -9,7 +9,6 @@ dataset = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/data/raw") # NOTE EMF
 log_path = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/logs/emfit_num_log.csv") # NOTE EMFIT5 IN PATH
 output_path = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/logs/emfit_dates.csv")
 
-
 # === Load existing log file as a dictionary ===
 with open(log_path, newline='') as f:
     reader = csv.DictReader(f)

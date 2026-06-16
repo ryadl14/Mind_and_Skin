@@ -104,7 +104,7 @@ shopt -u extglob dotglob # Turns it off.
 # =====================
 # NIGHT AND FILE CLASSIFICATION
 # =====================
-echo "Creating file specific folders with night folders"
+echo "Sorting files into date and file type folders."
 shopt -s extglob
 for nights in "$EMFIT_DIR"/data/raw/MS*/Visit_*/@(*.zip|*.edf|*.csv); do
     night_id=$(basename "$nights" | cut -d'_' -f3)

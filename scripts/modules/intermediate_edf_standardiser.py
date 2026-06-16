@@ -53,7 +53,20 @@ print(f"Copied {edf_count} EDF files to intermediate.")
 # =====================
 print("\nUpdating EDF headers to UK local time...")
 
+# Load already corrected files to prevent double correction on rerun
+corrected_log_path = intermediate_dir / "headers_corrected.txt"
+if corrected_log_path.exists():
+    corrected_files = set(corrected_log_path.read_text().splitlines())
+else:
+    corrected_files = set()
+
 for edf_path in intermediate_dir.rglob("*.edf"):
+
+    # Skip if already corrected in a previous run
+    if str(edf_path) in corrected_files:
+        print(f"Already corrected, skipping: {edf_path.name}")
+        continue
+
     try:
         edf = edfio.read_edf(str(edf_path))
 
@@ -75,6 +88,10 @@ for edf_path in intermediate_dir.rglob("*.edf"):
         edf.recording = edfio.Recording(startdate=uk_dt.date())
         edf.starttime = uk_dt.time()
         edf.write(str(edf_path))
+
+        # Log this file as corrected
+        with open(corrected_log_path, 'a') as f:
+            f.write(str(edf_path) + '\n')
 
         header_update_counter += 1
 
@@ -165,19 +182,16 @@ try:
             else:
                 filename_end_datetime = None
 
-            try:
+            try: # Prevents errors with abnormal file names.
                 utc_offset = int(parts[-1].replace('UTC+', '').replace('UTC-', ''))
             except ValueError:
                 print(f"Cannot parse UTC offset fromm {edf.stem}. defaulting to 0")
                 print(f"parts[-1] = {parts[-1]}")
                 utc_offset = 0
 
-            expected_offset = utc_offset * 60
-            match = abs(offset_minutes - expected_offset) < 1
+            match = abs(offset_minutes) < 1
 
             recording_duration_secs = raw.n_times / raw.info['sfreq']
-            header_end = header_start_datetime + timedelta(seconds=recording_duration_secs) if isinstance(header_start_datetime, datetime) else None
-
             header_start_datetime = raw.info['meas_date'].strftime("%d/%m/%Y %H:%M:%S")
             header_end = (raw.info['meas_date'] + timedelta(seconds=recording_duration_secs)).strftime("%d/%m/%Y %H:%M:%S")
 
@@ -206,12 +220,12 @@ print("\nComparing filenames against corrected headers...")
 log_df = pd.read_csv(log_path)
 
 for _, row in log_df.iterrows():
-    raw_path = Path(row['filename'])
+    intermediate_path = Path(row['filename'])
 
     try: # Guard against not finding MS85 V1N5 in raw data for some reason?
-        intermediate_path = intermediate_dir / raw_path.relative_to(raw_dir)
-    except:
-        print(f"File not in raw directory, skipping: {raw_path.name}")
+        relative_path = intermediate_path.relative_to(intermediate_dir)
+    except ValueError:
+        print(f"File not in intermediate directory, skipping: {intermediate_path.name}")
         continue
 
     if not intermediate_path.exists():
@@ -234,9 +248,7 @@ for _, row in log_df.iterrows():
     utc_string = f"UTC+{utc_offset}" if utc_offset >= 0 else f"UTC{utc_offset}"
 
     header_end = datetime.strptime(row['header_end'], "%d/%m/%Y %H:%M:%S")
-    header_end = header_end.replace(tzinfo=eest_tz)
-    header_end_uk = header_end.astimezone(timezone.utc) + start_offset
-    header_end_uk = header_end_uk.replace(tzinfo=header_start_uk.tzinfo)
+    header_end_uk = header_end.replace(tzinfo=uk_tz)
 
     start_date = header_start_uk.strftime("%Y%m%d")
     start_time = header_start_uk.strftime("%H%M")
@@ -244,7 +256,7 @@ for _, row in log_df.iterrows():
     end_time = header_end_uk.strftime("%H%M")
 
     participant = row['participant_id']
-    emfit_id = raw_path.stem.split('_')[1]
+    emfit_id = intermediate_path.stem.split('_')[1]
 
     if start_date == end_date:
         new_stem = f"{participant}_{emfit_id}_{start_date}_{start_time}_{end_time}_{utc_string}"
