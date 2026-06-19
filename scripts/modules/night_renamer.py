@@ -77,6 +77,9 @@ to_rename = n0_df[n0_df['difference'] == 'Y']['ID'].tolist()
 print(f"Participants needing renaming: {len(to_rename)}")
 print(f"IDs: {to_rename}\n")
 
+# === NEW: Initialise rename_maps dictionary ===
+rename_maps = {}
+
 # === Rename nights ===
 for participant_id in to_rename:
 
@@ -146,6 +149,10 @@ for participant_id in to_rename:
 
         print(f"{participant_id} | PSG N0: {psg_n0.strftime('%d/%m/%Y')} | Rename map: {rename_map}")
 
+    # === NEW: Store rename_map for log update ===
+    rename_maps[participant_id] = rename_map
+
+
     # === Apply renames across raw and intermediate only ===
     for base_dir in [raw_dir, intermediate_dir]:
 
@@ -207,6 +214,58 @@ for participant_id in to_rename:
                         print(f"  Renamed: Night_{old_num} → Night_{new_num} ({base_dir.name}/{participant_path.name}/{visit_dir.name})")
                     except PermissionError:
                         print(f"  ERROR: Permission denied on final rename of Night_{old_num}_tmp in {base_dir.name}/{participant_path.name}/{visit_dir.name}")
+
+# === Update n0_comparison log — only runs on live execution ===
+if not DRY_RUN:
+    print("\nUpdating n0_comparison log...")
+
+    n0_df = pd.read_csv(n0_comparison_path)
+    new_emfit_n0_values = []
+    notes_values = []
+
+    typo_ids = {
+        pid for pid, corr in corrections.items()
+        if corr['metadata_N0'] == corr['emfit_N0']
+    }
+
+    for _, row in n0_df.iterrows():
+        pid = row['ID']
+
+        if row['difference'] in ['N', 'N/A']:
+            new_emfit_n0_values.append('N/A')
+            notes_values.append('N/A')
+            continue
+
+        if pid in typo_ids:
+            new_emfit_n0_values.append('N/A')
+            notes_values.append('Typo in metadata, no change')
+            continue
+
+        if pid not in rename_maps or not rename_maps[pid]:
+            new_emfit_n0_values.append('N/A')
+            notes_values.append('N/A')
+            continue
+
+        rmap = rename_maps[pid]
+        earliest_old = min(rmap.keys())
+        earliest_new = rmap[earliest_old]
+        new_emfit_n0_values.append(f'Night_{earliest_new}')
+
+        if pid in corrections and corrections[pid]['flat_shift'] is not None:
+            notes_values.append(f'EMFIT started late, first recording is Night_{earliest_new}')
+        elif pid in corrections:
+            notes_values.append('Typo in metadata, corrected')
+        else:
+            notes_values.append('N/A')
+
+    n0_df['new_emfit_n0'] = new_emfit_n0_values
+    n0_df['notes'] = notes_values
+
+    try:
+        n0_df.to_csv(n0_comparison_path, index=False)
+        print("n0_comparison log updated with new_emfit_n0 and notes columns.")
+    except PermissionError:
+        print("ERROR: Cannot write n0_comparison log — close the file first and rerun.")
 
 if DRY_RUN:
     print("\n[DRY RUN COMPLETE] No files were renamed.")
