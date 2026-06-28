@@ -77,7 +77,7 @@ to_rename = n0_df[n0_df['difference'] == 'Y']['ID'].tolist()
 print(f"Participants needing renaming: {len(to_rename)}")
 print(f"IDs: {to_rename}\n")
 
-# === NEW: Initialise rename_maps dictionary ===
+# === Initialise rename_maps dictionary ===
 rename_maps = {}
 
 # === Rename nights ===
