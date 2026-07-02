@@ -51,6 +51,32 @@ def get_base_number(row_id):
 
 rows = []
 
+# === Load atopic comorbidities ===
+comorbidities_path = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit/documentation/MS_atopic_comorbidities.csv")
+comorbidity_cols = ['Asthma', 'Hayfever', 'Food allergies', 'Contact allergies']
+
+comorbidities_df = pd.read_csv(comorbidities_path)
+comorbidities_df = comorbidities_df.rename(columns={'Subject': 'subject'})  # normalise capitalisation
+comorbidities_df['subject'] = comorbidities_df['subject'].str.strip()
+
+# Fill blanks with No
+for col in comorbidity_cols:
+    comorbidities_df[col] = comorbidities_df[col].fillna('No').str.strip()
+
+def find_comorbidity_row(comorbidities_df, row_id):
+    """Padding-aware lookup — strips visit suffix before matching,
+    since comorbidities are per participant not per visit."""
+    match = re.match(r'MS0*(\d+)', row_id)
+    if not match:
+        return None
+    num = int(match.group(1))
+    candidates = [f"MS{num}", f"MS{num:02d}", f"MS{num:03d}"]
+    for cid in candidates:
+        row = comorbidities_df[comorbidities_df['subject'] == cid]
+        if not row.empty:
+            return row.iloc[0]
+    return None
+
 # === Build participant/visit pairs from raw ===
 for participant_path in sorted(raw_dir.glob("MS*")):
     if not participant_path.is_dir():
@@ -107,6 +133,23 @@ for participant_path in sorted(raw_dir.glob("MS*")):
             'has_ssarousal_tt': 'Y' if has_ssarousal_tt else '',
             'eligible_for_sync': eligible_for_sync,
         })
+
+        # === Comorbidity lookup (visit suffix stripped — per participant, not per visit) ===
+        comorbidity_row = find_comorbidity_row(comorbidities_df, row_id)
+        for col in comorbidity_cols:
+            if comorbidity_row is not None:
+                rows[-1][col] = comorbidity_row[col]
+            else:
+                rows[-1][col] = None
+
+        # Total comorbidity count
+        if comorbidity_row is not None:
+            rows[-1]['comorbidity_count'] = sum(
+                1 for col in comorbidity_cols
+                if str(comorbidity_row[col]).strip().lower() == 'yes'
+            )
+        else:
+            rows[-1]['comorbidity_count'] = None
 
 output_df = pd.DataFrame(rows)
 

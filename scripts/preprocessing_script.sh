@@ -107,10 +107,37 @@ shopt -u extglob dotglob # Turns it off.
 echo "Sorting files into date and file type folders."
 shopt -s extglob
 for nights in "$EMFIT_DIR"/data/raw/MS*/Visit_*/@(*.zip|*.edf|*.csv); do
-    night_id=$(basename "$nights" | cut -d'_' -f3)
+    fname=$(basename "$nights")
+    stem="${fname%.*}"
+
+    # Classify each field by pattern, not position — handles the differing variants in the filenames
+    dates=(); times=()
+    IFS='_' read -ra parts <<< "$stem"
+    for p in "${parts[@]}"; do
+        [[ "$p" =~ ^[0-9]{8}$ ]] && dates+=("$p") # Dates are 8 digit long patterns e.g. 20250106
+        [[ "$p" =~ ^[0-9]{4}$ ]] && times+=("$p") # Times are 4 digit long patterns e.g. 2104
+    done
+
+    file_date="${dates[0]}"
+    start_hhmm="${times[0]}"
+    end_hhmm="${times[${#times[@]}-1]}"
+
+    start_min=$(( 10#${start_hhmm:0:2} * 60 + 10#${start_hhmm:2:2} ))
+    end_min=$(( 10#${end_hhmm:0:2} * 60 + 10#${end_hhmm:2:2} ))
+    duration=$(( end_min - start_min ))
+    [ "$duration" -lt 0 ] && duration=$(( duration + 1440 ))
+
+    start_hour=$(( 10#${start_hhmm:0:2} ))
+
+    if [ "$start_hour" -lt 9 ] && [ "$duration" -ge 30 ]; then # If the recording occurs before 9am and is longer than 30 minutes
+        night_id=$(date -d "${file_date} -1 day" +%Y%m%d) # Subtract a day
+    else
+        night_id="$file_date"
+    fi
+
     night_folder=$(dirname "$nights")
     file_ext="${nights##*.}"
-    mkdir -p "$night_folder/$night_id/$file_ext" 
+    mkdir -p "$night_folder/$night_id/$file_ext"
     mv "$nights" "$night_folder/$night_id/$file_ext"
 done
 shopt -u extglob
