@@ -118,6 +118,13 @@ for nights in "$EMFIT_DIR"/data/raw/MS*/Visit_*/@(*.zip|*.edf|*.csv); do
         [[ "$p" =~ ^[0-9]{4}$ ]] && times+=("$p") # Times are 4 digit long patterns e.g. 2104
     done
 
+    # Skip files that don't match the expected EMFIT naming convention
+    # (e.g. loose summary/log files sitting in the Visit folder)
+    if [ ${#dates[@]} -eq 0 ] || [ ${#times[@]} -eq 0 ]; then
+        echo "  Skipping (unrecognised filename pattern): $fname"
+        continue
+    fi
+
     file_date="${dates[0]}"
     start_hhmm="${times[0]}"
     end_hhmm="${times[${#times[@]}-1]}"

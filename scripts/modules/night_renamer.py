@@ -2,10 +2,14 @@ import pandas as pd
 from pathlib import Path
 from datetime import datetime
 import re
+import mne
+import csv
+from datetime import timezone, timedelta
 
 # === Paths ===
 raw_dir = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/data/raw")
 intermediate_dir = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/data/intermediate")
+log_path = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/logs/header_check_log.csv")
 
 metadata_path = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit/documentation/MS_Metadata_Copy.csv")
 emfit_dates_path = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/logs/emfit_dates.csv")
@@ -271,3 +275,115 @@ if DRY_RUN:
     print("\n[DRY RUN COMPLETE] No files were renamed.")
 else:
     print("\nDone.")
+
+
+# Regenerates header_log_check.csv with updated headers, paths and nights
+
+print("\nRegenerating header_check_log.csv...")
+
+mne.set_log_level('WARNING')
+
+column_names = ['filename', 'participant_id', 'visit', 'night', 
+                'header_start', 'filename_start', 'header_end', 
+                'filename_end', 'offset_minutes', 'match']
+
+try:
+    with open(log_path, 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=column_names, extrasaction='ignore')
+        writer.writeheader()
+
+        for edf in intermediate_dir.rglob('*.edf'):
+            raw = mne.io.read_raw_edf(edf, preload=False)
+            filename = Path(edf).stem
+
+            participant = None
+            visit = edf.parts[-4]
+            night = edf.parts[-3]
+
+            try:
+                parts = edf.stem.split('_')
+                participant = parts[0]
+                start_date = parts[2]
+                start_time = parts[3]
+
+                if len(parts) > 4 and parts[4].isdigit() and len(parts[4]) == 8:
+                    end_date = parts[4]
+                    end_time = parts[5]
+                elif len(parts) > 4 and parts[4].isdigit():
+                    end_date = start_date
+                    end_time = parts[4]
+                elif len(parts) > 5 and parts[5].isdigit() and len(parts[5]) == 8:
+                    end_date = parts[5]
+                    end_time = parts[6]
+                else:
+                    end_date = start_date
+                    end_time = parts[5]
+
+            except IndexError:
+                recording_duration_secs = raw.n_times / raw.info['sfreq']
+                header_start_datetime = raw.info['meas_date']
+                header_end = header_start_datetime + timedelta(seconds=recording_duration_secs)
+                header_start_datetime = header_start_datetime.strftime("%d/%m/%Y %H:%M:%S")
+                header_end = header_end.strftime("%d/%m/%Y %H:%M:%S")
+                writer.writerow({
+                    'filename': edf,
+                    'participant_id': participant,
+                    'visit': visit,
+                    'night': night,
+                    'header_start': header_start_datetime,
+                    'filename_start': None,
+                    'header_end': header_end,
+                    'filename_end': None,
+                    'offset_minutes': None,
+                    'match': False
+                })
+                continue
+
+            header_start_datetime = raw.info['meas_date']
+
+            filename_start_datetime = start_date + " " + start_time
+            filename_start_datetime = datetime.strptime(filename_start_datetime, "%Y%m%d %H%M")
+            filename_start_datetime = filename_start_datetime.replace(tzinfo=timezone.utc)
+
+            offset_minutes = header_start_datetime - filename_start_datetime
+            offset_minutes = offset_minutes.total_seconds() / 60
+
+            filename_start_datetime = filename_start_datetime.strftime("%d/%m/%Y %H:%M:00")
+
+            if end_time is not None:
+                filename_end_datetime = end_date + " " + end_time
+                filename_end_datetime = datetime.strptime(filename_end_datetime, "%Y%m%d %H%M")
+                filename_end_datetime = filename_end_datetime.replace(tzinfo=timezone.utc)
+                filename_end_datetime = filename_end_datetime.strftime("%d/%m/%Y %H:%M:00")
+            else:
+                filename_end_datetime = None
+
+            try: # Prevents errors with abnormal file names.
+                utc_offset = int(parts[-1].replace('UTC+', '').replace('UTC-', ''))
+            except ValueError:
+                print(f"Cannot parse UTC offset fromm {edf.stem}. defaulting to 0")
+                print(f"parts[-1] = {parts[-1]}")
+                utc_offset = 0
+
+            match = abs(offset_minutes) < 1
+
+            recording_duration_secs = raw.n_times / raw.info['sfreq']
+            header_start_datetime = raw.info['meas_date'].strftime("%d/%m/%Y %H:%M:%S")
+            header_end = (raw.info['meas_date'] + timedelta(seconds=recording_duration_secs)).strftime("%d/%m/%Y %H:%M:%S")
+
+            writer.writerow({
+                'filename': edf,
+                'participant_id': participant,
+                'visit': visit,
+                'night': night,
+                'header_start': header_start_datetime,
+                'filename_start': filename_start_datetime,
+                'header_end': header_end,
+                'filename_end': filename_end_datetime,
+                'offset_minutes': offset_minutes,
+                'match': match
+            })
+
+    print("header_check_log.csv regenerated.")
+except PermissionError:
+    print("ERROR: Cannot write header_check_log — close the file first.")
