@@ -51,6 +51,14 @@ def resolve_participant_visit(row_id, raw_dir):
 
     return base_id, visit_dir_name
 
+def get_start_hour(filename: str) -> int:
+    """Extract start hour from an EMFIT filename, robust to variable field
+    counts (mid-recording UTC labels, rollover dates)."""
+    times = [t for t in filename.split('_') if re.fullmatch(r'\d{4}', t)]
+    if not times:
+        raise ValueError(f"Could not parse start time from {filename}")
+    return int(times[0][:2])
+
 
 def find_n0_row(n0_df, base_id, visit_dir_name):
     """Padding-aware lookup of a participant's row in n0_comparison.csv."""
@@ -98,6 +106,7 @@ def process_participant(row_id):
         'error_reason': ''
     }
 
+
     try:
         base_id, visit_dir_name = resolve_participant_visit(row_id, raw_dir)
         PARTICIPANT = base_id
@@ -136,17 +145,42 @@ def process_participant(row_id):
             hour=int(h), minute=int(m), second=int(float(s))
         )
 
-        # === Longest EDF in Night_0 ===
+        
+        ## THIS HAS NOT BEEN TESTED, PREVIOUSLY JUST SELECTED THE LONGEST NIGHT ## 
+        
+        # === Longest night-window EDF in Night_0 ===
         edf_dir = intermediate_participant_dir / "Night_0" / "edf"
         edf_candidates = list(edf_dir.glob("*.edf"))
         if not edf_candidates:
             raise FileNotFoundError(f"No Night_0 EDF found for {row_id}")
 
+        # Restrict to files starting in the night window (20:00-08:59) — excludes
+        # daytime naps/recordings that happen to share this Night_0 folder.
+        night_candidates = [
+            p for p in edf_candidates
+            if get_start_hour(p.name) >= 20 or get_start_hour(p.name) < 9
+        ]
+
+        if not night_candidates:
+            raise FileNotFoundError(
+                f"No night-window EDF files found for {row_id} Night_0 "
+                f"(found {len(edf_candidates)} daytime-only files)"
+            )
+
+        if len(edf_candidates) > len(night_candidates):
+            print(f"{row_id}: excluded {len(edf_candidates) - len(night_candidates)} daytime file(s) from selection")
+
+        # Check duration of each night-window candidate without loading full data
         durations = []
-        for path in edf_candidates:
+        for path in night_candidates:
             raw_header = mne.io.read_raw_edf(path, preload=False)
             durations.append(raw_header.n_times / raw_header.info['sfreq'])
-        edf_path = edf_candidates[durations.index(max(durations))]
+
+        if len(night_candidates) > 1:
+            print(f"{row_id}: WARNING — {len(night_candidates)} night-window fragments found for Night_0 — "
+                  f"selecting longest only; other fragment(s) excluded from this analysis")
+
+        edf_path = night_candidates[durations.index(max(durations))]
 
         raw = mne.io.read_raw_edf(edf_path, preload=True)
         bcg_channel = 'BCG-Raw-Low' if 'BCG-Raw-Low' in raw.ch_names else 'BCG-Raw-High'
