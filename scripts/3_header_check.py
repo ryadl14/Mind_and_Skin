@@ -4,14 +4,16 @@ from pathlib import Path
 from datetime import datetime, timezone, timedelta
 mne.set_log_level('WARNING') # Silences verbose messages
 
-files = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/data/raw") # NOTE EMFIT_1 IN PATH
-log = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/logs/header_check_log.csv") # NOTE EMFIT_1 IN PATH
+files = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/data/raw") 
+log = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/logs/header_check_log.csv") 
 
+# Creates the column names for the log.
 column_names = ['filename', 'participant_id', 'visit', 'night', 'header_start', 'filename_start', 'header_end', 'filename_end', 'offset_minutes', 'match' ]
 with open(log, 'w', newline='') as f:
     writer = csv.DictWriter(f, fieldnames=column_names, extrasaction='ignore') 
     writer.writeheader()
     
+    # Looks through all of the edf files using the mne package.
     for edf in files.rglob('*.edf'):
             raw = mne.io.read_raw_edf(edf, preload=False)
             filename = Path(edf).stem
@@ -22,14 +24,14 @@ with open(log, 'w', newline='') as f:
             visit = edf.parts[-4]
             night = edf.parts[-3]
 
-            try:
+            try: # Grabs the following variables from the filename e.g. MS25_Emfit1_20240117_1549_20240118_0836_UTC+0.edf
                 parts = edf.stem.split('_')
-                participant = parts[0]
-                start_date = parts[2]
-                start_time = parts[3]
+                participant = parts[0] # MS25
+                start_date = parts[2] # 20240117
+                start_time = parts[3] # 1549
                 
-                visit = edf.parts[-4]
-                night = edf.parts[-3]
+                visit = edf.parts[-4] # Grabs visit from the directory tree
+                night = edf.parts[-3] # Grabs night from the directory tree
 
                 if len(parts) > 4 and parts[4].isdigit() and len(parts[4]) == 8:
                     # Standard two day recording
@@ -47,7 +49,7 @@ with open(log, 'w', newline='') as f:
                     # DST same day recording - UTC offset appears mid filename, no end date
                     end_date = start_date
                     end_time = parts[5]
-            except IndexError:
+            except IndexError: # Default fills with the available information.
                 recording_duration_secs = raw.n_times / raw.info['sfreq']
                 header_start_datetime = raw.info['meas_date']
                 header_end = header_start_datetime + timedelta(seconds=recording_duration_secs)
@@ -76,7 +78,7 @@ with open(log, 'w', newline='') as f:
 
            
             offset_minutes = header_start_datetime - filename_start_datetime
-            offset_minutes = offset_minutes.total_seconds() / 60 # Gets the minute offset
+            offset_minutes = offset_minutes.total_seconds() / 60 # Divides by 60 to get the minute offset
 
             filename_start_datetime = filename_start_datetime.strftime("%d/%m/%Y %H:%M:00") # Standardises the datetime format, had to be done after offset is calculated since strftime converts it to a string.
 
@@ -90,10 +92,10 @@ with open(log, 'w', newline='') as f:
             else:
                  filename_end_datetime = None
 
-            match = abs(offset_minutes - 120) < 1
+            match = abs(offset_minutes - 120) < 1 # Match is False if the absolute value of the offset exceeds 120 minutes (120 due to timezone differences, EEST vs BST).
 
             recording_duration_secs = raw.n_times / raw.info['sfreq'] # Calculates the seconds in a recording by dividing the number of samples by the sampling frequency.
-            header_end = header_start_datetime + timedelta(seconds=recording_duration_secs)
+            header_end = header_start_datetime + timedelta(seconds=recording_duration_secs) # Calculates the end time by adding the duration to the start time.
 
             header_start_datetime = header_start_datetime.strftime("%d/%m/%Y %H:%M:%S") # Standardises the datetime format
             header_end = header_end.strftime("%d/%m/%Y %H:%M:%S")
