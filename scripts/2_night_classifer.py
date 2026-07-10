@@ -5,21 +5,24 @@ import shutil
 import re
 import pandas as pd
 
-dataset = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/data/raw") # NOTE EMFIT5 IN PATH
-log_path = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/logs/emfit_num_log.csv") # NOTE EMFIT5 IN PATH
+dataset = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/data/raw") 
+log_path = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/logs/emfit_num_log.csv") 
 output_path = Path("C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1/logs/emfit_dates.csv")
 
-# === Load existing log file as a dictionary ===
+# ====================================== 
+# Load emfit_num_log.csv as a dictionary 
+# ======================================
+
 with open(log_path, newline='') as f:
     reader = csv.DictReader(f)
     fieldnames = reader.fieldnames
     log_rows = list(reader)
 
-# Converts list of rows into a dictionary keyed by participant_id. .strip() removes whitespace
+# Converts list of rows into a dictionary keyed by participant_id. | .strip() removes whitespace
 log_lookup = {row['participant_id'].strip(): row for row in log_rows} 
-all_night_keys = set()
+all_night_keys = set() # Initialises an empty set.
 
-
+# Loops through all participants and visits.
 for participant in dataset.iterdir():
     if not participant.is_dir():
         continue
@@ -29,9 +32,7 @@ for participant in dataset.iterdir():
         if not visit.is_dir():  # Guard against stray files
             continue
 
-        # =====================
         # Fix edge case folders (e.g. 20231115.csv, 20231115.edf)
-        # =====================
         for item in list(visit.iterdir()):
             if item.is_dir() and item.name.endswith(('.csv', '.edf')):
                 night_folder = visit / item.stem  # e.g. 20231115
@@ -41,12 +42,7 @@ for participant in dataset.iterdir():
                 item.rmdir()  # Remove now-empty edge case folder
                 print(f"Fixed edge case folder: {item.name} → {item.stem}")
 
-        
-
-        # =====================
-        # Build night list
-        # Only include date-named directories, exclude extension folders
-        # =====================
+        # Build night list in each visit, only include date-named directories, exclude extension folders
         night_list = sorted([
             n for n in visit.glob("202*")
             if n.is_dir() and not n.name.endswith(('.csv', '.edf'))
@@ -55,16 +51,17 @@ for participant in dataset.iterdir():
         if not night_list: # Ensures night_list is not empty.
             continue
 
-        night_anchor = datetime.strptime(night_list[0].name, "%Y%m%d")
+        night_anchor = datetime.strptime(night_list[0].name, "%Y%m%d") # Selects the earliest data as the 'anchor'.
 
         # =====================
         # Rename nights and update log
         # =====================
+
         for night in night_list:
-            night_object = datetime.strptime(night.name, "%Y%m%d")
+            night_object = datetime.strptime(night.name, "%Y%m%d") # Saves night as a datetime object
             night_number = (night_object - night_anchor).days # Night 0 indexed
             night_key = f"{visit.name}_night_{night_number}" # Includes visit number to emfit_num_log to prevent nights across multiple visits overriding each other.
-            all_night_keys.add(night_key)
+            all_night_keys.add(night_key) # Adds them to the night_key.
 
             # Update log with original date
             if participant_id not in log_lookup:
@@ -89,6 +86,7 @@ for participant in dataset.iterdir():
 # =====================
 # Write updated log
 # =====================
+
 all_night_keys = sorted(all_night_keys, key=lambda x: (int(x.split('_')[1]), int(x.split('_')[3]))) # Sorts the night (and visit) columns numerically
 new_fieldnames = ['participant_id', 'emfit_id'] + all_night_keys # Creates the column list, where participant_id and emfit_id is always first.
 
@@ -97,7 +95,7 @@ log_lookup = {
     for k, v in log_lookup.items()
 }
 
-try:
+try: # Updates the log
     with open(log_path, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=new_fieldnames, extrasaction='ignore')
         writer.writeheader()
@@ -108,9 +106,9 @@ except PermissionError:
     print("ERROR: Cannot write to log — close the emfit_num_log first and rerun.")
 
 
-# =====================
-# Reformat emfit_num_log to match metadata
-# =====================
+# ================================================================
+# Create emfit_dates.csv, based on emfit_num_log to match metadata
+# ================================================================
 
 def pad_participant(pid):
     # Convert MS04 → MS004, MS25 → MS025
