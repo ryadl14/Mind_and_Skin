@@ -51,6 +51,7 @@ print(f"Copied {edf_count} EDF files to intermediate.")
 # =====================
 # STEP 2: Update EDF headers from EEST to UK local time
 # =====================
+
 print("\nUpdating EDF headers to UK local time...")
 
 # Load already corrected files to prevent double correction on rerun
@@ -70,7 +71,7 @@ for edf_path in intermediate_dir.rglob("*.edf"):
     try:
         edf = edfio.read_edf(str(edf_path))
 
-        # Build full datetime with EEST timezone
+        # Build full datetime with current (EEST) timezone
         current_dt = datetime(
             edf.recording.startdate.year,
             edf.recording.startdate.month,
@@ -102,6 +103,7 @@ print(f"Headers updated: {header_update_counter}")
 
 # =====================
 # STEP 3: Regenerate header_check_log.csv using updated headers
+# # Same logic as header_check.py
 # =====================
 print("\nRegenerating header_check_log.csv...")
 
@@ -217,7 +219,7 @@ except PermissionError:
 # =====================
 print("\nComparing filenames against corrected headers...")
 
-log_df = pd.read_csv(log_path)
+log_df = pd.read_csv(log_path) # Opens the header check log
 
 for _, row in log_df.iterrows():
     intermediate_path = Path(row['filename'])
@@ -240,16 +242,17 @@ for _, row in log_df.iterrows():
     header_start_uk = datetime.strptime(row['header_start'], "%d/%m/%Y %H:%M:%S")
     header_start_uk = header_start_uk.replace(tzinfo=uk_tz)
 
-    start_offset = header_start_uk.utcoffset()
+    start_offset = header_start_uk.utcoffset() # Returns UTC+0 or UTC+1 depending on BST
     if start_offset is None:
-        start_offset = timedelta(0)
+        start_offset = timedelta(0) # Fallback to UTC+0 if offset cannot be determined
 
-    utc_offset = int(start_offset.total_seconds() // 3600)
-    utc_string = f"UTC+{utc_offset}" if utc_offset >= 0 else f"UTC{utc_offset}"
+    utc_offset = int(start_offset.total_seconds() // 3600) # Convert offset to whole hours
+    utc_string = f"UTC+{utc_offset}" if utc_offset >= 0 else f"UTC{utc_offset}" # Format as UTC+1 or UTC-1 etc.
 
     header_end = datetime.strptime(row['header_end'], "%d/%m/%Y %H:%M:%S")
     header_end_uk = header_end.replace(tzinfo=uk_tz)
 
+    # Extract date and time components for building the new filename
     start_date = header_start_uk.strftime("%Y%m%d")
     start_time = header_start_uk.strftime("%H%M")
     end_date = header_end_uk.strftime("%Y%m%d")
@@ -258,6 +261,8 @@ for _, row in log_df.iterrows():
     participant = row['participant_id']
     emfit_id = intermediate_path.stem.split('_')[1]
 
+    # Build new standardised filename stem
+    # Same-day recordings omit the end date; overnight recordings include both dates
     if start_date == end_date:
         new_stem = f"{participant}_{emfit_id}_{start_date}_{start_time}_{end_time}_{utc_string}"
     else:
@@ -266,7 +271,7 @@ for _, row in log_df.iterrows():
     new_path = intermediate_path.parent / f"{new_stem}.edf"
 
     if new_path.exists():
-        print(f"Skipping — already renamed: {new_path.name}")
+        print(f"Skipping — already renamed: {new_path.name}") # Idempotency guard — skip if already renamed
         continue
 
     intermediate_path.rename(new_path)
