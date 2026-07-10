@@ -1,11 +1,5 @@
-## Set base project directory
-#if [[ $(basename "$PWD") == "Emfit"]]; then
-#    EMFIT_DIR=$(realpath "$PWD")
-#fi
-## ^ Will come back later to adjust conditions.
-
 # Set base directory
-EMFIT_DIR="C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1" # NOTE EMFIT_1 IN PATH
+EMFIT_DIR="C:/Users/ryadl/Desktop/EMFIT_local/Emfit_1" # < - YOU WILL LIKELY NEED TO CHANGE THIS
 echo "Setting up EMFIT at: $EMFIT_DIR"
 
 # ============================
@@ -20,28 +14,25 @@ mkdir -p "$EMFIT_DIR/scripts"
 mkdir -p "$EMFIT_DIR/documentation/"
 mkdir -p "$EMFIT_DIR/logs/"
 
-# ==============================================
-# Creates a log file extracting which Emfit it is
-# ===============================================
-# Currently running into an issue where the participant ID's have EmfitX at the end. 
-# I do not want to delete these in case it is important later, so the goal is save it as an .csv log.
+# ==============================================================================
+# Creates a log file extracting which Emfit device is used for each participant
+# ==============================================================================
 
 # Create the log file with participant_id and emfit_id as headers.
 echo "participant_id,emfit_id" > "$EMFIT_DIR/logs/emfit_num_log.csv"
 
-# Loop throught the directory.
 echo "Removing _emfit from participant names and saving to emfit_num_log."
 for subject in "$EMFIT_DIR"/MS*; do
     participant_name=$(basename "$subject" | sed "s/_Emfit[^_]*//")  # Extract the MSXX name as participant name
     emfit_num=$(basename "$subject" | sed "s/MS[^_]*_//" | sed "s/_.*//") # Extract the Emfit ID as emfit_num
     if [[ $emfit_num == $participant_name ]]; then
-        emfit_num="N/A" # If there is no Emfit_id, N/A.
+        emfit_num="N/A" # If there is no Emfit_ID, make it N/A.
     fi
     echo "$participant_name, $emfit_num" >> $EMFIT_DIR/logs/emfit_num_log.csv # Append both into the csv file.
 
     # Checks to make sure the emfit tag has been cut off.
     if [[ "$participant_name" != $(basename "$subject") ]]; then
-        mv "$subject" "$EMFIT_DIR/$participant_name" # Renames the folder just the participant ID's
+        mv "$subject" "$EMFIT_DIR/$participant_name" # Renames the folder to just the participant ID's
     fi
 done
 echo "Log saved to emfit_num_log.csv"
@@ -57,9 +48,10 @@ for visit in "$EMFIT_DIR"/MS*/Visit_*; do
 done
 
 
-# ===============================
+# ==============================================================================
 # Migrate all folders to data/raw
-# ===============================
+# ==============================================================================
+
 echo "Moving EMFIT files and folders under data/raw"
 for subject in "$EMFIT_DIR"/MS*; do
     if [[ -d "$subject" ]]; then # Checks subject is a directory
@@ -101,45 +93,50 @@ for subject_path in "$EMFIT_DIR"/data/raw/MS*; do
 done
 shopt -u extglob dotglob # Turns it off.
 
-# =====================
-# NIGHT AND FILE CLASSIFICATION
-# =====================
+# ==============================================================================
+# Night and file type classification 
+# ==============================================================================
+
 echo "Sorting files into date and file type folders."
 shopt -s extglob
 for nights in "$EMFIT_DIR"/data/raw/MS*/Visit_*/@(*.zip|*.edf|*.csv); do
-    fname=$(basename "$nights")
-    stem="${fname%.*}"
+    fname=$(basename "$nights") # Strip the full path, keep just the filename
+    stem="${fname%.*}" # Remove file extension to get the filename stem
 
-    # Classify each field by pattern, not position — handles the differing variants in the filenames
+    # Classify each field by pattern, not position; handles the differing variants in the filenames
     dates=(); times=()
-    IFS='_' read -ra parts <<< "$stem"
+    IFS='_' read -ra parts <<< "$stem" # Splits the stem by underscores into an array
     for p in "${parts[@]}"; do
         [[ "$p" =~ ^[0-9]{8}$ ]] && dates+=("$p") # Dates are 8 digit long patterns e.g. 20250106
         [[ "$p" =~ ^[0-9]{4}$ ]] && times+=("$p") # Times are 4 digit long patterns e.g. 2104
     done
 
-    # Skip files that don't match the expected EMFIT naming convention
+    # Skip files with no recognisable date or time tokens.
     # (e.g. loose summary/log files sitting in the Visit folder)
     if [ ${#dates[@]} -eq 0 ] || [ ${#times[@]} -eq 0 ]; then
         echo "  Skipping (unrecognised filename pattern): $fname"
         continue
     fi
 
-    file_date="${dates[0]}"
-    start_hhmm="${times[0]}"
-    end_hhmm="${times[${#times[@]}-1]}"
+    file_date="${dates[0]}" # First date token = recording start date
+    start_hhmm="${times[0]}" # First time token = recording start time
+    end_hhmm="${times[${#times[@]}-1]}" # Last time token = recording end time
 
+    # Convert HHMM string to total minutes since midnight for arithmetic, 10# forces base-10 interpretation, preventing parsing errors.
     start_min=$(( 10#${start_hhmm:0:2} * 60 + 10#${start_hhmm:2:2} ))
     end_min=$(( 10#${end_hhmm:0:2} * 60 + 10#${end_hhmm:2:2} ))
     duration=$(( end_min - start_min ))
-    [ "$duration" -lt 0 ] && duration=$(( duration + 1440 ))
+    [ "$duration" -lt 0 ] && duration=$(( duration + 1440 )) # Add 24h in minutes if recording crossed midnight
 
-    start_hour=$(( 10#${start_hhmm:0:2} ))
+    start_hour=$(( 10#${start_hhmm:0:2} )) # Extract hour component for the early-morning check below
 
-    if [ "$start_hour" -lt 9 ] && [ "$duration" -ge 30 ]; then # If the recording occurs before 9am and is longer than 30 minutes
-        night_id=$(date -d "${file_date} -1 day" +%Y%m%d) # Subtract a day
+    # Assign early-morning continuation recordings to the previous calendar night
+    # A recording starting before 09:00 and lasting at least 30 minutes
+    # is assumed to be a continuation of the previous night rather than a new day
+    if [ "$start_hour" -lt 9 ] && [ "$duration" -ge 30 ]; then 
+        night_id=$(date -d "${file_date} -1 day" +%Y%m%d) # Subtract a day so it falls in the previous night.
     else
-        night_id="$file_date"
+        night_id="$file_date" # Standard case — use the start date as-is
     fi
 
     night_folder=$(dirname "$nights")
